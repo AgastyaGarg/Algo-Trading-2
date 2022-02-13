@@ -1,0 +1,35 @@
+#170911102
+#Agastya Garg
+#06
+
+
+k=read.csv("marks.csv")
+data.frame(k)
+#calculate avg for each subject
+avg_m=unlist(apply(k[2:6], 2, mean))
+mode(avg_m)
+print(avg_m)
+
+k[which(k$Sub1>=avg_m[1])]
+#calculate avg for each student
+avg_m=apply(k[2:6], 1, mean)
+print(avg_m)
+apply(k[2:6], 2, function(x) x[x>mean(x)])
+sapply(2:6, function(x) x[x>=avg_m])
+
+#histogram
+avg_m=apply(k[2:6], 2, mean)
+hist(avg_m, breaks=6, main="Breaks=6")
+
+#mean of sub4
+s4=mean(k$Sub4)
+s=floor(s4)
+#ADD MEAN
+k$Sub1=sapply(k$Sub1, function(x) x+s)
+k
+print(k[which(k$Sub1>90),])
+order(k$Name,decreasing = TRUE)
+
+k=read.csv("marks.csv")
+sort(k)
+        
