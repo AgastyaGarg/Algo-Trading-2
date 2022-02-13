@@ -1,0 +1,498 @@
+!pip install yfinance
+import yfinance as yf  
+import matplotlib.pyplot as plt
+data = yf.download('BTC-USD','2021-01-01','2021-09-30')
+data.head()
+
+
+import pandas_datareader as pdr
+start = datetime(2021, 1, 1)
+end = datetime(2021, 9, 30)
+syms = ['IMPCH', 'IMPJP']
+df = pd.DataFrame()
+for sym in syms:
+  ts = pdr.fred.FredReader(sym, start=start, end=end)
+  df1 = ts.read()
+  df = pd.concat([df, df1], axis=1)
+df 
+
+!pip install twelvedata[pandas,matplotlib,plotly]
+!pip install websocket_client
+from twelvedata import TDClient
+# Initialize client
+td = TDClient(apikey="PUT_YOUR_API_KEY_HERE")
+# Construct the necessary time serie
+ts = td.time_series(
+   symbol="MSFT",
+   interval="1min",
+   outputsize=500,)
+# returns Plotly dash
+ts.as_plotly_figure().show()
+
+import numpy as np
+data['r'] = np.log(data['c'] / data['c'].shift(1))
+cols = []
+for momentum in [15, 30, 60, 120, 150]:
+    col = f'p_{momentum}'
+    data[col] = np.sign(data['r'].rolling(momentum).mean())
+    cols.append(col)
+
+from pylab import plt
+plt.style.use('seaborn')
+strats = ['r']
+for col in cols:
+    strat = f's_{col[2:]}'
+    data[strat] = data[col].shift(1) * data['r']
+    strats.append(strat)
+data[strats].dropna().cumsum().apply(np.exp).plot(cmap=‘coolwarm');
+
+import pandas as pd
+class MomentumTrader(tpqoa.tpqoa):
+    def __init__(self, config_file, momentum):
+        super(MomentumTrader, self).__init__(config_file)  
+        self.momentum = momentum  
+        self.min_length = momentum + 1  
+        self.position = 0  self.units = 10000  
+        self.tick_data = pd.DataFrame()
+    def on_success(self, time, bid, ask):
+        trade = False  
+        # print(self.ticks, end=' ')  
+        self.tick_data = self.tick_data.append(
+            pd.DataFrame({'b': bid, 'a': ask, 'm': (ask + bid) / 2},
+               index=[pd.Timestamp(time).tz_localize(tz=None)])
+        )
+        self.data = self.tick_data.resample('5s', 
+           label='right').last().ffill()  
+        self.data['r'] = np.log(self.data['m'] / 
+          self.data['m'].shift(1))  
+        self.data['m'] =
+          self.data['r'].rolling(self.momentum).mean()
+        self.data.dropna(inplace=True)  
+        if len(self.data) > self.min_length:
+            self.min_length += 1
+            if self.data['m'].iloc[-2] > 0 and self.position 
+               in [0, -1]:
+               o = oanda.create_order(self.stream_instrument,
+                             units=(1 - self.position) * self.units,
+                             suppress=True, ret=True)
+              print('\n*** GOING LONG ***')
+              oanda.print_transactions(tid=int(o['id']) - 1)
+              self.position = 1
+        if self.data['m'].iloc[-2] < 0 and self.position in [0, 1]:
+              o = oanda.create_order(self.stream_instrument,
+                            units=-(1 + self.position) * self.units,
+                            suppress=True, ret=True)
+              print('\n*** GOING SHORT ***')
+              self.print_transactions(tid=int(o['id']) - 1)
+              self.position = -1
+
+mt = MomentumTrader('oanda.cfg', momentum=5) mt.stream_data('EUR_USD', stop=100)
+*** GOING SHORT *** 
+1975 | 2020-11-17T09:32:57.81 | EUR_USD | -10000.0 | 0.0
+*** GOING LONG *** 
+1977 | 2020-11-17T09:33:15.83 | EUR_USD | 20000.0 | -2.2017
+*** GOING SHORT *** 
+1979 | 2020-11-17T09:33:56.38 | EUR_USD | -20000.0 | -0.5928
+*** GOING LONG *** 
+1981 | 2020-11-17T09:34:05.39 | EUR_USD | 20000.0 | -1.5241
+
+from pprint import pprint
+o = mt.create_order('EUR_USD', units=-mt.position * mt.units,
+                    suppress=True, ret = True)
+print('\n*** POSITION CLOSED ***')
+mt.print_transactions(tid=int(o['id']) - 1)
+print('\n')
+pprint(o)
+*** POSITION CLOSED *** 
+1987 | 2020-11-17T10:17:53.18 | EUR_USD | 10000.0 | -2.371
+{'accountBalance': '98309.1911',  
+ 'accountID': '101-004-13834683-001',  
+ 'batchID': '1986',  
+ 'commission': '0.0',  
+ 'financing': '0.0',  
+ 'fullPrice': {'asks': [{'liquidity': '10000000', 'price':
+                   1.18693}],  
+               'bids': [{'liquidity': '10000000', 'price':
+                   1.18679}], 
+               'closeoutAsk': 1.18693,  
+               'closeoutBid': 1.18679,  
+               'type': 'PRICE'},  
+'fullVWAP': 1.18693,  
+'gainQuoteHomeConversionFactor': '0.838346564431',  'guaranteedExecutionFee': '0.0',  
+'halfSpreadCost': '0.5898',  
+'id': '1987',  
+'instrument': 'EUR_USD', 
+'lossQuoteHomeConversionFactor': '0.846772158044',  
+'orderID': '1986',  
+'pl': '-2.371',  
+'price': 1.18693,  
+'reason': 'MARKET_ORDER',  
+'requestID': '78792003242162178',  
+'time': '2020-11-17T10:17:53.184866940Z',  
+'tradesClosed': [{'financing': '0.0',  
+                  'guaranteedExecutionFee': '0.0',
+                  'halfSpreadCost': '0.5898',  
+                  'price': 1.18693,  
+                  'realizedPL': '-2.371',  
+                  'tradeID': '1985',  
+                  'units': '10000.0'}],  
+'type': 'ORDER_FILL',  
+'units': '10000.0',  
+'userID': 13834683}
+
+# Function sourced from 
+# https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]   
+        
+symbol_groups = list(chunks(stocks['Ticker'], 100))
+symbol_strings = []
+for i in range(0, len(symbol_groups)):
+    symbol_strings.append(','.join(symbol_groups[i]))
+#     print(symbol_strings[i])
+
+my_columns = ['Ticker', 'Price', 'Price-to-Earnings Ratio', 'Number of Shares to Buy']
+
+def portfolio_input():
+    global portfolio_size
+    portfolio_size = input("Enter the value of your portfolio:")
+
+    try:
+        val = float(portfolio_size)
+    except ValueError:
+        print("That's not a number! \n Try again:")
+        portfolio_size = input("Enter the value of your portfolio:")
+
+my_columns = ['Ticker', 'Price','Market Capitalization', 'Number Of Shares to Buy']
+final_dataframe = pd.DataFrame(columns = my_columns)
+final_dataframe
+final_dataframe = final_dataframe.append(
+                                        pd.Series(['AAPL', 
+                                                   data['latestPrice'], 
+                                                   data['marketCap'], 
+                                                   'N/A'], 
+                                                  index = my_columns), 
+                                        ignore_index = True)
+final_dataframe
+
+final_dataframe = pd.DataFrame(columns = my_columns)
+for symbol in stocks['Ticker']:
+    api_url = f'https://sandbox.iexapis.com/stable/stock/{symbol}/quote?token={IEX_CLOUD_API_TOKEN}'
+    data = requests.get(api_url).json()
+    final_dataframe = final_dataframe.append(
+                                        pd.Series([symbol, 
+                                                   data['latestPrice'], 
+                                                   data['marketCap'], 
+                                                   'N/A'], 
+                                                  index = my_columns), 
+                                        ignore_index = True)
+
+# Function sourced from 
+# https://stackoverflow.com/questions/312443/how-do-you-split-a-list-into-evenly-sized-chunks
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+symbol_groups = list(chunks(stocks['Ticker'], 100))
+symbol_strings = []
+for i in range(0, len(symbol_groups)):
+    symbol_strings.append(','.join(symbol_groups[i]))
+#     print(symbol_strings[i])
+
+final_dataframe = pd.DataFrame(columns = my_columns)
+
+for symbol_string in symbol_strings:
+#     print(symbol_strings)
+    batch_api_call_url = f'https://sandbox.iexapis.com/stable/stock/market/batch/?types=quote&symbols={symbol_string}&token={IEX_CLOUD_API_TOKEN}'
+    data = requests.get(batch_api_call_url).json()
+    for symbol in symbol_string.split(','):
+        final_dataframe = final_dataframe.append(
+                                        pd.Series([symbol, 
+                                                   data[symbol]['quote']['latestPrice'], 
+                                                   data[symbol]['quote']['marketCap'], 
+                                                   'N/A'], 
+                                                  index = my_columns), 
+                                        ignore_index = True)
+        
+    
+final_dataframe
+
+portfolio_size = input("Enter the value of your portfolio:")
+
+try:
+    val = float(portfolio_size)
+except ValueError:
+    print("That's not a number! \n Try again:")
+    portfolio_size = input("Enter the value of your portfolio:")
+position_size = float(portfolio_size) / len(final_dataframe.index)
+for i in range(0, len(final_dataframe['Ticker'])-1):
+    final_dataframe.loc[i, 'Number Of Shares to Buy'] = math.floor(position_size / final_dataframe['Price'][i])
+final_dataframe
+
+writer = pd.ExcelWriter('recommended_trades.xlsx', engine='xlsxwriter')
+final_dataframe.to_excel(writer, sheet_name='Recommended Trades', index = False)
+
+background_color = '#0a0a23'
+font_color = '#ffffff'
+
+string_format = writer.book.add_format(
+        {
+            'font_color': font_color,
+            'bg_color': background_color,
+            'border': 1
+        }
+    )
+
+dollar_format = writer.book.add_format(
+        {
+            'num_format':'$0.00',
+            'font_color': font_color,
+            'bg_color': background_color,
+            'border': 1
+        }
+    )
+
+integer_format = writer.book.add_format(
+        {
+            'num_format':'0',
+            'font_color': font_color,
+            'bg_color': background_color,
+            'border': 1
+        }
+    )
+
+column_formats = { 
+                    'A': ['Ticker', string_format],
+                    'B': ['Price', dollar_format],
+                    'C': ['Market Capitalization', dollar_format],
+                    'D': ['Number of Shares to Buy', integer_format]
+                    }
+
+for column in column_formats.keys():
+    writer.sheets['Recommended Trades'].set_column(f'{column}:{column}', 20, column_formats[column][1])
+    writer.sheets['Recommended Trades'].write(f'{column}1', column_formats[column][0], string_format)
+
+def calculate_max_drawdown_with_metadata(series: pd.Series, 
+    method: str='log') -> Dict[str, Any]:
+    """
+    Calculates max_drawdown and stores metadata about when and where. Returns 
+    a dictionary of the form 
+        {
+            'max_drawdown': float,
+            'peak_date': pd.Timestamp,
+            'peak_price': float,
+            'trough_date': pd.Timestamp,
+            'trough_price': float,
+        }
+    """
+
+    assert method in DRAWDOWN_EVALUATORS, \
+        f'Method "{method}" must by one of {list(DRAWDOWN_EVALUATORS.keys())}'
+
+    evaluator = DRAWDOWN_EVALUATORS[method]
+
+    max_drawdown = 0
+    local_peak_date = peak_date = trough_date = series.index[0]
+    local_peak_price = peak_price = trough_price = series.iloc[0]
+
+    for date, price in series.iteritems():
+
+        # Keep track of the rolling max
+        if price > local_peak_price:
+            local_peak_date = date
+            local_peak_price = price
+
+        # Compute the drawdown
+        drawdown = evaluator(price, local_peak_price)
+
+        # Store new max drawdown values
+        if drawdown > max_drawdown:
+            max_drawdown = drawdown
+
+            peak_date = local_peak_date
+            peak_price = local_peak_price
+
+            trough_date = date
+            trough_price = price
+
+    return {
+        'max_drawdown': max_drawdown,
+        'peak_date': peak_date,
+        'peak_price': peak_price,
+        'trough_date': trough_date,
+        'trough_price': trough_price
+    }
+from typing import Dict, Any, Callable
+
+DRAWDOWN_EVALUATORS: Dict[str, Callable] = {
+    'dollar': lambda price, peak: peak - price,
+    'percent': lambda price, peak: -((price / peak) - 1),
+    'log': lambda price, peak: np.log(peak) - np.log(price),
+}
+
+def calculate_drawdown_series(series: pd.Series, method: str='log') -> pd.Series:
+    """
+    Returns the drawdown series
+    """
+    assert method in DRAWDOWN_EVALUATORS, \
+        f'Method "{method}" must by one of {list(DRAWDOWN_EVALUATORS.keys())}'
+
+    evaluator = DRAWDOWN_EVALUATORS[method]
+    return evaluator(series, series.cummax())
+
+def calculate_max_drawdown(series: pd.Series, method: str='log') -> float:
+    """
+    Simply returns the max drawdown as a float
+    """
+    return calculate_drawdown_series(series, method).max()
+
+from sklearn.linear_model import LinearRegression
+
+def calculate_pure_profit_score(price_series: pd.Series) -> float:
+    """
+    Calculates the pure profit score
+    """
+    cagr = calculate_cagr(price_series)
+
+    # Build a single column for a predictor, t
+    t: np.ndarray = np.arange(0, price_series.shape[0]).reshape(-1, 1)
+
+    # Fit the regression
+    regression = LinearRegression().fit(t, price_series)
+
+    # Get the r-squared value
+    r_squared = regression.score(t, price_series)
+
+    return cagr * r_squared
+
+def calculate_sharpe_ratio(price_series: pd.Series, 
+    benchmark_rate: float=0) -> float:
+    """
+    Calculates the sharpe ratio given a price series. Defaults to benchmark_rate
+    of zero.
+    """
+    cagr = calculate_cagr(price_series)
+    return_series = calculate_return_series(price_series)
+    volatility = calculate_annualized_volatility(return_series)
+    return (cagr - benchmark_rate) / volatility
+def calculate_annualized_downside_deviation(return_series: pd.Series, 
+    benchmark_rate: float=0) -> float:
+    """
+    Calculates the downside deviation for use in the sortino ratio.
+    Benchmark rate is assumed to be annualized. It will be adjusted according 
+    to the number of periods per year seen in the data.
+    """
+
+    # For both de-annualizing the benchmark rate and annualizing result
+    years_past = get_years_past(return_series)
+    entries_per_year = return_series.shape[0] / years_past
+
+    adjusted_benchmark_rate = ((1+benchmark_rate) ** (1/entries_per_year)) - 1
+
+    downside_series = adjusted_benchmark_rate - return_series
+    downside_sum_of_squares = (downside_series[downside_series > 0] ** 2).sum()
+    denominator = return_series.shape[0] - 1
+    downside_deviation = np.sqrt(downside_sum_of_squares / denominator)
+
+    return downside_deviation * np.sqrt(entries_per_year)
+
+def calculate_sortino_ratio(price_series: pd.Series, 
+    benchmark_rate: float=0) -> float:
+    """
+    Calculates the sortino ratio.
+    """
+    cagr = calculate_cagr(price_series)
+    return_series = calculate_return_series(price_series)
+    downside_deviation = calculate_annualized_downside_deviation(return_series)
+    return (cagr - benchmark_rate) / downside_deviation
+
+def fast_moving_average(values: List[float], m: int=20):
+    """
+    This is O(n) time, because it keeps track of the intermediate sum.
+    Leading to approx 2n individual additions.
+    """
+
+    # Initial values
+    moving_average = [None] * (m-1)
+    accumulator = sum(values[:m])
+    moving_average.append(accumulator / m)
+
+    for i in range(m, len(values)):
+        accumulator -= values[i-m]
+        accumulator += values[i]
+        moving_average.append(accumulator / m)
+
+    return moving_average
+
+def slow_moving_average(values: List[float], m: int=20):
+    """
+    This is O(nm) time, because it re-computes the sum at every step
+    1 + 2 + 3 + 4 + ... / m
+    2 + 3 + 4 + 5 + ... / m
+    3 + 4 + 5 + 6 + ... / m
+    4 + 5 + 6 + 7 + ... / m
+    and so on ...
+    Leading to approx (m-1) * n individual additions.
+    """
+
+    # Initial values
+    moving_average = [None] * (m-1)
+
+    for i in range(m-1, len(values)):
+        the_average = np.mean(values[(i-m+1):i+1])
+        moving_average.append(the_average)
+
+    return moving_average
+
+def calculate_money_flow_volume_series(df: pd.DataFrame) -> pd.Series:
+    """
+    Calculates money flow series
+    """
+    mfv = df['volume'] * (2*df['close'] - df['high'] - df['low']) / \
+                                    (df['high'] - df['low'])
+    return mfv
+
+def calculate_money_flow_volume(df: pd.DataFrame, n: int=20) -> pd.Series:
+    """
+    Calculates money flow volume, or q_t in our formula
+    """
+    return calculate_money_flow_volume_series(df).rolling(n).sum()
+
+def calculate_chaikin_money_flow(df: pd.DataFrame, n: int=20) -> pd.Series:
+    """
+    Calculates the Chaikin money flow
+    """
+    return calculate_money_flow_volume(df, n) / df['volume'].rolling(n).sum()
+
+def create_macd_signal(series: pd.Series, n1: int=5, n2: int=34) -> pd.Series:
+    """
+    Create a momentum-based signal based on the MACD crossover principle. 
+    Generate a buy signal when the MACD cross above zero, and a sell signal when
+    it crosses below zero.
+    """
+
+    # Calculate the macd and get the signs of the values.
+    macd = calculate_macd_oscillator(series, n1, n2)
+    macd_sign = np.sign(macd)
+
+    # Create a copy shifted by some amount.
+    macd_shifted_sign = macd_sign.shift(1, axis=0)
+
+    # Multiply by the sign by the boolean. This will have the effect of casting
+    # the boolean to an integer (either 0 or 1) and then multiply by the sign
+    # (either -1, 0 or 1).
+    return macd_sign * (macd_sign != macd_shifted_sign)
+
+
+def create_bollinger_band_signal(series: pd.Series, n: int=20) -> pd.Series:
+    """
+    Create a reversal-based signal based on the upper and lower bands of the 
+    Bollinger bands. Generate a buy signal when the price is below the lower 
+    band, and a sell signal when the price is above the upper band.
+    """
+    bollinger_bands = calculate_bollinger_bands(series, n)
+    sell = series > bollinger_bands['upper']
+    buy = series < bollinger_bands['lower']
+    return (1*buy - 1*sell)
